@@ -1,0 +1,8 @@
+Revision history for Perl extension Coro::Mysql
+
+0.1   Sat May 30 08:57:43 CEST 2009
+	- first cpan upload.
+
+0.01  Sun May 17 15:11:00 CEST 2009
+	- original version; cloned from Convert::Scalar.
+
