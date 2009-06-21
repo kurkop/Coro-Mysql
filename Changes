@@ -1,5 +1,14 @@
 Revision history for Perl extension Coro::Mysql
 
+1.0   Sun Jun 21 02:56:05 CEST 2009
+	- allow unblock calls on non-mysql handles as well
+          (and return them unchanged).
+        - unpatching was done too late durign destruction -
+          hook diretcly into mysql's vio for that. saves memory
+          and should be faster, even though neither will make a big
+          difference :)
+        - added a nice usage example using PApp::SQL 1.04.
+
 0.1   Sat May 30 08:57:43 CEST 2009
 	- first cpan upload.
 

@@ -25,9 +25,11 @@ DESCRIPTION
     cannot run multiple requests in parallel on the same database handle. If
     you want to run multiple queries in parallel, you have to create
     multiple database connections, one for each thread that runs queries.
+    Not doing so can corrupt your data - use a Coro::Semaphore when in
+    doubt.
 
     If you make sure that you never run two or more requests in parallel,
-    you cna freely share the database handles between threads, of course.
+    you can freely share the database handles between threads, of course.
 
     Also, this module uses a number of "unclean" techniques (patching an
     internal libmysql structure for one thing) and was hacked within a few
@@ -35,12 +37,12 @@ DESCRIPTION
 
     It does, however, check whether it indeed got the structure layout
     correct, so you should expect perl exceptions or early crashes as
-    opposed to data corruption when something goes wrong.
+    opposed to data corruption when something goes wrong during patching.
 
   SPEED
     This module is implemented in XS, and as long as mysqld replies quickly
     enough, it adds no overhead to the standard libmysql communication
-    routines (which are very badly written).
+    routines (which are very badly written, btw.).
 
     For very fast queries ("select 0"), this module can add noticable
     overhead (around 15%) as it tries to switch to other coroutines when
@@ -50,12 +52,74 @@ DESCRIPTION
     multicore systems where your perl process can do other things while
     mysqld does its stuff.
 
+  LIMITATIONS
+    This module only supports "standard" mysql connection handles - this
+    means unix domain or TCP sockets, and excludes SSL/TLS connections,
+    named pipes (windows) and shared memory (also windows). No support for
+    these connection types is planned, either.
+
+FUNCTIONS
+    Coro::Mysql offers a single user-accessible function:
+
     $DBH = Coro::Mysql::unblock $DBH
         This function takes a DBI database handles and "patches" it so it
         becomes compatible to Coro threads.
 
         After that, it returns the patched handle - you should always use
         the newly returned database handle.
+
+        It is safe to call this function on any database handle (or just
+        about any value), but it will only do anything to DBD::mysql
+        handles, others are returned unchanged. That means it is harmless
+        when applied to database handles of other databases.
+
+USAGE EXAMPLE
+    This example uses PApp::SQL and Coro::on_enter to implement a function
+    "with_db", that connects to a database, uses "unblock" on the resulting
+    handle and then makes sure that $PApp::SQL::DBH is set to the
+    (per-thread) database handle when the given thread is running (it does
+    not restore any previous value of $PApp::SQL::DBH, however):
+
+       use Coro;
+       use Coro::Mysql;
+       use PApp::SQL;
+
+       sub with_db($$$&) {
+          my ($database, $user, $pass, $cb) = @_;
+
+          my $dbh = Coro::Mysql::unblock DBI->connect ($database, $user, $pass)
+             or die $DBI::errstr;
+
+          Coro::on_enter { $PApp::SQL::DBH = $dbh };
+
+          $cb->();
+       }
+
+    This function makes it possible to easily use PApp::SQL with
+    Coro::Mysql, without worrying about database handles.
+
+       # now start 10 threads doing stuff
+       async {
+
+          with_db "DBI:mysql:test", "", "", sub {
+             sql_exec "update table set col = 5 where id = 7";
+
+             my $st = sql_exec \my ($id, $name),
+                               "select id, name from table where name like ?",
+                               "a%";
+
+             while ($st->fetch) {
+                ...
+             }
+
+             my $id = sql_insertid sql_exec "insert into table values (1,2,3)";
+             # etc.
+          };
+
+       } for 1..10;
+
+SEE ALSO
+    Coro, PApp::SQL (a user friendly but efficient wrapper around DBI).
 
 AUTHOR
      Marc Lehmann <schmorp@schmorp.de>

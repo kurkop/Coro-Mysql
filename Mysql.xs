@@ -8,6 +8,8 @@
 #include "perl.h"
 #include "XSUB.h"
 
+#define IN_DESTRUCT PL_dirty
+
 typedef U16 uint16;
 
 /* cached function gv's */
@@ -21,7 +23,7 @@ static CV *readable, *writable;
 
 typedef struct {
   int magic;
-  SV *corosocket;
+  SV *corohandle_sv, *corohandle;
   int bufofs, bufcnt;
   char buf[VIO_READ_BUFFER_SIZE];
 } ourdata;
@@ -50,7 +52,7 @@ our_read (Vio *vio, gptr p, int len)
           {
             dSP;
             PUSHMARK (SP);
-            XPUSHs (our->corosocket);
+            XPUSHs (our->corohandle);
             PUTBACK;
             call_sv ((SV *)readable, G_VOID | G_DISCARD);
           }
@@ -94,7 +96,7 @@ our_write (Vio *vio, const gptr p, int len)
         {
           dSP;
           PUSHMARK (SP);
-          XPUSHs (OURDATAPTR->corosocket);
+          XPUSHs (OURDATAPTR->corohandle);
           PUTBACK;
           call_sv ((SV *)writable, G_VOID | G_DISCARD);
         }
@@ -105,6 +107,30 @@ our_write (Vio *vio, const gptr p, int len)
     }
 
   return ptr - (char *)p;
+}
+
+static int
+our_close (Vio *vio)
+{
+  if (vio->read != our_read)
+    croak ("vio.read has unexpected content during unpatch - wtf?");
+
+  if (vio->write != our_write)
+    croak ("vio.write has unexpected content during unpatch - wtf?");
+
+  if (vio->vioclose != our_close)
+    croak ("vio.vioclose has unexpected content during unpatch - wtf?");
+
+  SvREFCNT_dec (OURDATAPTR->corohandle);
+  SvREFCNT_dec (OURDATAPTR->corohandle_sv);
+
+  Safefree (OURDATAPTR);
+
+  vio->read     = vio_read;
+  vio->write    = vio_write;
+  vio->vioclose = vio_close;
+
+  vio->vioclose (vio);
 }
 
 MODULE = Coro::Mysql		PACKAGE = Coro::Mysql
@@ -118,7 +144,7 @@ BOOT:
 PROTOTYPES: ENABLE
 
 void
-_patch (IV sock, int fd, SV *corosocket)
+_patch (IV sock, int fd, SV *corohandle_sv, SV *corohandle)
 	CODE:
 {
 	MYSQL *my = (MYSQL *)sock;
@@ -131,41 +157,26 @@ _patch (IV sock, int fd, SV *corosocket)
         if (fd != vio->sd)
           croak ("DBD::mysql fd and vio-sd disagree - library mismatch, unsupported transport or API changes?");
 
+        if (vio->vioclose != vio_close)
+          croak ("vio.write has unexpected content - library mismatch, unsupported transport or API changes?");
+
         if (vio->write != vio_write)
           croak ("vio.write has unexpected content - library mismatch, unsupported transport or API changes?");
 
-        if (vio->read != vio_read && vio->read != vio_read_buff)
+        if (vio->read != vio_read
+            && vio->read != vio_read_buff)
           croak ("vio.read has unexpected content - library mismatch, unsupported transport or API changes?");
 
         Newz (0, our, 1, ourdata);
         our->magic = CoMy_MAGIC;
-        our->corosocket = newSVsv (corosocket);
+        our->corohandle_sv = newSVsv (corohandle_sv);
+        our->corohandle    = newSVsv (corohandle);
 
         vio->desc [DESC_OFFSET - 1] = 0;
         OURDATAPTR = our;
 
-        vio->write = our_write;
-        vio->read  = our_read;
+        vio->vioclose = our_close;
+        vio->write    = our_write;
+        vio->read     = our_read;
 }
-
-void
-_unpatch (IV sock)
-	CODE:
-{
-	MYSQL *my = (MYSQL *)sock;
-        Vio *vio = my->net.vio;
-        my_bool dummy;
-
-        if (vio->read != our_read)
-          croak ("vio.read has unexpected content during unpatch - wtf?");
-
-        SvREFCNT_dec (OURDATAPTR->corosocket);
-
-        Safefree (OURDATAPTR);
-
-        vio->read  = vio_read;
-        vio->write = vio_write;
-}
-
-
 

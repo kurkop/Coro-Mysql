@@ -3,8 +3,11 @@ use ExtUtils::MakeMaker;
 print <<EOF;
 
 **
-** This module *MUST* be linked against exactly the same libmysqlclient
-** as your DBD::mysql module. Otherwise it will die quickly when used.
+** This module *MUST* be dynamically linked against exactly the same
+** libmysqlclient as your DBD::mysql module (also dynamically).
+** Otherwise it will die quickly when used.
+** If desperate, you could also try linking against the DBD::mysql
+** shared object itself.
 **
 ** To adjust include and library path, edit the Makefile.PL, near the end.
 **
