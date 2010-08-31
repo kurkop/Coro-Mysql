@@ -1,4 +1,4 @@
-/* adapted from violite.h from mysql 5.0.51 *(
+/* adapted from violite.h from mysql 5.0.51 */
 /* all modifications public domain */
 /* Copyright (C) 2000 MySQL AB
 
@@ -29,6 +29,8 @@
 extern "C" {
 #endif /* __cplusplus */
 
+typedef char *xgptr;
+
 enum enum_vio_type
 {
   VIO_CLOSED, VIO_TYPE_TCPIP, VIO_TYPE_SOCKET, VIO_TYPE_NAMEDPIPE,
@@ -50,8 +52,8 @@ Vio* vio_new_win32shared_memory(NET *net,HANDLE handle_file_map,
                                 HANDLE event_client_wrote,
                                 HANDLE event_client_read,
                                 HANDLE event_conn_closed);
-int vio_read_pipe(Vio *vio, gptr buf, int size);
-int vio_write_pipe(Vio *vio, const gptr buf, int size);
+int vio_read_pipe(Vio *vio, xgptr buf, int size);
+int vio_write_pipe(Vio *vio, const xgptr buf, int size);
 int vio_close_pipe(Vio * vio);
 #else
 #define HANDLE void *
@@ -61,9 +63,9 @@ void	vio_delete(Vio* vio);
 int	vio_close(Vio* vio);
 void    vio_reset(Vio* vio, enum enum_vio_type type,
                   my_socket sd, HANDLE hPipe, uint flags);
-int	vio_read(Vio *vio, gptr	buf, int size);
-int     vio_read_buff(Vio *vio, gptr buf, int size);
-int	vio_write(Vio *vio, const gptr buf, int size);
+int	vio_read(Vio *vio, xgptr	buf, int size);
+int     vio_read_buff(Vio *vio, xgptr buf, int size);
+int	vio_write(Vio *vio, const xgptr buf, int size);
 int	vio_blocking(Vio *vio, my_bool onoff, my_bool *old_mode);
 my_bool	vio_is_blocking(Vio *vio);
 /* setsockopt TCP_NODELAY at IPPROTO_TCP level, when possible */
@@ -127,8 +129,8 @@ struct st_VioSSLFd
 #endif /* HAVE_OPENSSL */
 
 #ifdef HAVE_SMEM
-int vio_read_shared_memory(Vio *vio, gptr buf, int size);
-int vio_write_shared_memory(Vio *vio, const gptr buf, int size);
+int vio_read_shared_memory(Vio *vio, xgptr buf, int size);
+int vio_write_shared_memory(Vio *vio, const xgptr buf, int size);
 int vio_close_shared_memory(Vio * vio);
 #endif
 
@@ -186,8 +188,8 @@ struct st_vio
   /* function pointers. They are similar for socket/SSL/whatever */
   void    (*viodelete)(Vio*);
   int     (*vioerrno)(Vio*);
-  int     (*read)(Vio*, gptr, int);
-  int     (*write)(Vio*, const gptr, int);
+  int     (*read)(Vio*, xgptr, int);
+  int     (*write)(Vio*, const xgptr, int);
   int     (*vioblocking)(Vio*, my_bool, my_bool *);
   my_bool (*is_blocking)(Vio*);
   int     (*viokeepalive)(Vio*, my_bool);

@@ -1,5 +1,9 @@
 Revision history for Perl extension Coro::Mysql
 
+1.01  Tue Aug 31 16:40:16 CEST 2010
+	- gptr typedef is missing from newer libmysql, as
+          pointed out by Yury Zavarin.
+
 1.0   Sun Jun 21 02:56:05 CEST 2009
 	- allow unblock calls on non-mysql handles as well
           (and return them unchanged).
