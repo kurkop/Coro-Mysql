@@ -31,7 +31,7 @@ typedef struct {
 #define OURDATAPTR (*((ourdata **)((vio)->desc + DESC_OFFSET)))
 
 static int
-our_read (Vio *vio, gptr p, int len)
+our_read (Vio *vio, xgptr p, int len)
 {
   ourdata *our = OURDATAPTR;
 
@@ -76,7 +76,7 @@ our_read (Vio *vio, gptr p, int len)
 }
 
 static int
-our_write (Vio *vio, const gptr p, int len)
+our_write (Vio *vio, const xgptr p, int len)
 {
   char *ptr = (char *)p;
   my_bool dummy;

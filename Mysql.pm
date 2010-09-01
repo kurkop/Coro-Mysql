@@ -89,7 +89,7 @@ sub readable { &Coro::Handle::FH::readable }
 sub writable { &Coro::Handle::FH::writable }
 
 BEGIN {
-   our $VERSION = '1.01';
+   our $VERSION = '1.02';
 
    require XSLoader;
    XSLoader::load Coro::Mysql::, $VERSION;

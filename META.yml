@@ -11,7 +11,7 @@
    },
    "generated_by" : "ExtUtils::MakeMaker version 6.56",
    "distribution_type" : "module",
-   "version" : "1.01",
+   "version" : "1.02",
    "name" : "Coro-Mysql",
    "author" : [],
    "license" : "unknown",

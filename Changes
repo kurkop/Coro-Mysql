@@ -1,5 +1,9 @@
 Revision history for Perl extension Coro::Mysql
 
+1.02  Wed Sep  1 18:37:48 CEST 2010
+	- use xgptr everywhere, so it actually works on those newer
+          systems.
+
 1.01  Tue Aug 31 16:40:16 CEST 2010
 	- gptr typedef is missing from newer libmysql, as
           pointed out by Yury Zavarin.
