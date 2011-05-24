@@ -22,8 +22,9 @@ stuff while mysql is rumbling in the background.
 
 =head2 CAVEAT
 
-Note that this module must be linked against exactly the same
-F<libmysqlclient> library as DBD::mysql, otherwise it will not work.
+Note that this module must be linked against exactly the same (shared,
+possibly not working with all OSes) F<libmysqlclient> library as
+DBD::mysql, otherwise it will not work.
 
 Also, while this module makes database handles non-blocking, you still
 cannot run multiple requests in parallel on the same database handle. If
@@ -35,8 +36,8 @@ If you make sure that you never run two or more requests in parallel, you
 can freely share the database handles between threads, of course.
 
 Also, this module uses a number of "unclean" techniques (patching an
-internal libmysql structure for one thing) and was hacked within a few
-hours on a long flight to Malaysia.
+internal libmysql structure for one thing) and was initially hacked within
+a few hours on a long flight to Malaysia.
 
 It does, however, check whether it indeed got the structure layout
 correct, so you should expect perl exceptions or early crashes as opposed
@@ -46,13 +47,16 @@ to data corruption when something goes wrong during patching.
 
 This module is implemented in XS, and as long as mysqld replies quickly
 enough, it adds no overhead to the standard libmysql communication
-routines (which are very badly written, btw.).
+routines (which are very badly written, btw.). In fact, since it has a
+more efficient buffering and allows requests to run in parallel, it often
+decreases the actual time to run many queries considerably.
 
 For very fast queries ("select 0"), this module can add noticable overhead
-(around 15%) as it tries to switch to other coroutines when mysqld doesn't
-deliver the data instantly.
+(around 15%, 7% when EV can be used) as it tries to switch to other
+coroutines when mysqld doesn't deliver the data immediately, although,
+again, when running queries in parallel, they will usually execute faster.
 
-For most types of queries, there will be no overhead, especially on
+For most types of queries, there will be no extra latency, especially on
 multicore systems where your perl process can do other things while mysqld
 does its stuff.
 
@@ -62,6 +66,13 @@ This module only supports "standard" mysql connection handles - this
 means unix domain or TCP sockets, and excludes SSL/TLS connections, named
 pipes (windows) and shared memory (also windows). No support for these
 connection types is planned, either.
+
+=head1 CANCELLATION
+
+Cancelling a thread that is within a mysql query will likely make the
+handle unusable. As far as Coro::Mysql is concerned, the handle can be
+safely destroyed, but it's not clear how mysql itself will react to a
+cancellation.
 
 =head1 FUNCTIONS
 
@@ -80,7 +91,9 @@ use Scalar::Util ();
 use Carp qw(croak);
 
 use Guard;
-use Coro::Handle ();
+use AnyEvent ();
+use Coro ();
+use Coro::AnyEvent (); # not necessary with newer Coro versions
 
 # we need this extra indirection, as Coro doesn't support
 # calling SLF-like functions via call_sv.
@@ -89,7 +102,7 @@ sub readable { &Coro::Handle::FH::readable }
 sub writable { &Coro::Handle::FH::writable }
 
 BEGIN {
-   our $VERSION = '1.02';
+   our $VERSION = '1.1';
 
    require XSLoader;
    XSLoader::load Coro::Mysql::, $VERSION;
@@ -108,18 +121,26 @@ value), but it will only do anything to L<DBD::mysql> handles, others are
 returned unchanged. That means it is harmless when applied to database
 handles of other databases.
 
+It is also safe to pass C<undef>, so code like this is works as expected:
+
+   my $dbh = DBI->connect ($database, $user, $pass)->Coro::Mysql::unblock
+      or die $DBI::errstr;
+
 =cut
 
 sub unblock {
    my ($DBH) = @_;
 
-   if ($DBH->{Driver}{Name} eq "mysql") {
+   if ($DBH && $DBH->{Driver}{Name} eq "mysql") {
       my $sock = $DBH->{sock};
 
       open my $fh, "+>&" . $DBH->{sockfd}
          or croak "Coro::Mysql unable to clone mysql fd";
 
-      $fh = Coro::Handle::unblock $fh;
+      if (AnyEvent::detect ne "AnyEvent::Impl::EV" || !_use_ev) {
+         require Coro::Handle;
+         $fh = Coro::Handle::unblock ($fh);
+      }
 
       _patch $sock, $DBH->{sockfd}, $fh, tied ${$fh};
    }
@@ -146,7 +167,7 @@ restore any previous value of $PApp::SQL::DBH, however):
    sub with_db($$$&) {
       my ($database, $user, $pass, $cb) = @_;
 
-      my $dbh = Coro::Mysql::unblock DBI->connect ($database, $user, $pass)
+      my $dbh = DBI->connect ($database, $user, $pass)->Coro::Mysql::unblock
          or die $DBI::errstr;
 
       Coro::on_enter { $PApp::SQL::DBH = $dbh };

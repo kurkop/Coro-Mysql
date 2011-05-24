@@ -14,7 +14,7 @@ print <<EOF;
 
 EOF
 
-WriteMakefile(
+my %wm = (
     dist	=> {
 	            PREOP	=> 'pod2text Mysql.pm | tee README >$(DISTVNAME)/README; chmod -R u=rwX,go=rX . ;',
 	            COMPRESS	=> 'gzip -9v',
@@ -34,3 +34,23 @@ WriteMakefile(
     LIBS => ['-L/usr/lib -lmysqlclient'],
 );
 
+if (eval "require EV::MakeMaker; require Coro::MakeMaker; 1") {
+   %wm = Coro::MakeMaker::coro_args (EV::MakeMaker::ev_args (%wm));
+   $wm{DEFINE} .= " -DHAVE_EV=1";
+} else {
+   print <<EOF;
+
+**
+** Especially fast with EV!
+**
+** This module is especially fast when used together with EV as
+** the event loop - but you don't have EV installed. Too bad,
+** but I work with any event loop, including EV, using my
+** generic code, so no sweat. If you plan to use EV, better
+** install it before this module.
+**
+
+EOF
+}
+
+WriteMakefile %wm;

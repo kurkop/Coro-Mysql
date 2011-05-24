@@ -8,12 +8,18 @@
 #include "perl.h"
 #include "XSUB.h"
 
+#if HAVE_EV
+# include "EVAPI.h"
+# include "CoroAPI.h"
+#endif
+
 #define IN_DESTRUCT PL_dirty
 
 typedef U16 uint16;
 
 /* cached function gv's */
 static CV *readable, *writable;
+static int use_ev;
 
 #include "violite.h"
 
@@ -25,6 +31,9 @@ typedef struct {
   int magic;
   SV *corohandle_sv, *corohandle;
   int bufofs, bufcnt;
+#if HAVE_EV
+  ev_io rw, ww;
+#endif
   char buf[VIO_READ_BUFFER_SIZE];
 } ourdata;
 
@@ -49,13 +58,23 @@ our_read (Vio *vio, xgptr p, int len)
           if (rd >= 0 || errno != EAGAIN)
             break;
 
-          {
-            dSP;
-            PUSHMARK (SP);
-            XPUSHs (our->corohandle);
-            PUTBACK;
-            call_sv ((SV *)readable, G_VOID | G_DISCARD);
-          }
+#if HAVE_EV
+          if (use_ev)
+            {
+              our->rw.data = (void *)sv_2mortal (SvREFCNT_inc (CORO_CURRENT));
+              ev_io_start (EV_DEFAULT_UC, &(our->rw));
+              CORO_SCHEDULE;
+              ev_io_stop (EV_DEFAULT_UC, &(our->rw)); /* avoids races */
+            }
+          else
+#endif
+            {
+              dSP;
+              PUSHMARK (SP);
+              XPUSHs (our->corohandle);
+              PUTBACK;
+              call_sv ((SV *)readable, G_VOID | G_DISCARD);
+            }
         }
 
       if (rd <= 0)
@@ -94,11 +113,25 @@ our_write (Vio *vio, const xgptr p, int len)
         }
       else if (errno == EAGAIN)
         {
-          dSP;
-          PUSHMARK (SP);
-          XPUSHs (OURDATAPTR->corohandle);
-          PUTBACK;
-          call_sv ((SV *)writable, G_VOID | G_DISCARD);
+          ourdata *our = OURDATAPTR;
+
+#if HAVE_EV
+          if (use_ev)
+            {
+              our->ww.data = (void *)sv_2mortal (SvREFCNT_inc (CORO_CURRENT));
+              ev_io_start (EV_DEFAULT_UC, &(our->ww));
+              CORO_SCHEDULE;
+              ev_io_stop (EV_DEFAULT_UC, &(our->ww)); /* avoids races */
+            }
+          else
+#endif
+            {
+              dSP;
+              PUSHMARK (SP);
+              XPUSHs (our->corohandle);
+              PUTBACK;
+              call_sv ((SV *)writable, G_VOID | G_DISCARD);
+            }
         }
       else if (ptr == (char *)p)
         return -1;
@@ -112,6 +145,8 @@ our_write (Vio *vio, const xgptr p, int len)
 static int
 our_close (Vio *vio)
 {
+  ourdata *our = OURDATAPTR;
+
   if (vio->read != our_read)
     croak ("vio.read has unexpected content during unpatch - wtf?");
 
@@ -121,10 +156,18 @@ our_close (Vio *vio)
   if (vio->vioclose != our_close)
     croak ("vio.vioclose has unexpected content during unpatch - wtf?");
 
-  SvREFCNT_dec (OURDATAPTR->corohandle);
-  SvREFCNT_dec (OURDATAPTR->corohandle_sv);
+#if HAVE_EV
+  if (use_ev)
+    {
+      ev_io_stop (EV_DEFAULT_UC, &(our->rw));
+      ev_io_stop (EV_DEFAULT_UC, &(our->ww));
+    }
+#endif
 
-  Safefree (OURDATAPTR);
+  SvREFCNT_dec (our->corohandle);
+  SvREFCNT_dec (our->corohandle_sv);
+
+  Safefree (our);
 
   vio->read     = vio_read;
   vio->write    = vio_write;
@@ -132,6 +175,15 @@ our_close (Vio *vio)
 
   vio->vioclose (vio);
 }
+
+#if HAVE_EV
+static void
+iocb (EV_P_ ev_io *w, int revents)
+{
+  ev_io_stop (EV_A, w);
+  CORO_READY ((SV *)w->data);
+}
+#endif
 
 MODULE = Coro::Mysql		PACKAGE = Coro::Mysql
 
@@ -142,6 +194,25 @@ BOOT:
 }
 
 PROTOTYPES: ENABLE
+
+void
+_use_ev ()
+	PPCODE:
+{
+	static int onceonly;
+
+	if (!onceonly)
+          {
+	    onceonly = 1;
+#if HAVE_EV
+	    I_EV_API ("Coro::Mysql");
+	    I_CORO_API ("Coro::Mysql");
+	    use_ev = 1;
+#endif
+          }
+
+        XPUSHs (use_ev ? &PL_sv_yes : &PL_sv_no);
+}
 
 void
 _patch (IV sock, int fd, SV *corohandle_sv, SV *corohandle)
@@ -171,6 +242,13 @@ _patch (IV sock, int fd, SV *corohandle_sv, SV *corohandle)
         our->magic = CoMy_MAGIC;
         our->corohandle_sv = newSVsv (corohandle_sv);
         our->corohandle    = newSVsv (corohandle);
+#if HAVE_EV
+        if (use_ev)
+          {
+            ev_io_init (&(our->rw), iocb, vio->sd, EV_READ);
+            ev_io_init (&(our->ww), iocb, vio->sd, EV_WRITE);
+          }
+#endif
 
         vio->desc [DESC_OFFSET - 1] = 0;
         OURDATAPTR = our;
