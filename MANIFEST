@@ -7,4 +7,5 @@ Mysql.pm
 Mysql.xs
 violite.h
 t/00_load.t
-META.json                                Module meta-data (added by MakeMaker)
+META.yml                                 Module YAML meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)

@@ -39,8 +39,8 @@ typedef struct {
 
 #define OURDATAPTR (*((ourdata **)((vio)->desc + DESC_OFFSET)))
 
-static int
-our_read (Vio *vio, xgptr p, int len)
+static xlen
+our_read (Vio *vio, xgptr p, xlen len)
 {
   ourdata *our = OURDATAPTR;
 
@@ -94,8 +94,8 @@ our_read (Vio *vio, xgptr p, int len)
   return len;
 }
 
-static int
-our_write (Vio *vio, const xgptr p, int len)
+static xlen
+our_write (Vio *vio, cxgptr p, xlen len)
 {
   char *ptr = (char *)p;
   my_bool dummy;
@@ -215,12 +215,17 @@ _use_ev ()
 }
 
 void
-_patch (IV sock, int fd, SV *corohandle_sv, SV *corohandle)
+_patch (IV sock, int fd, unsigned long client_version, SV *corohandle_sv, SV *corohandle)
 	CODE:
 {
 	MYSQL *my = (MYSQL *)sock;
         Vio *vio = my->net.vio;
         ourdata *our;
+
+        /* matching versions are required but not sufficient */
+        if (client_version != mysql_get_client_version ())
+          croak ("DBD::mysql linked against different libmysqlclient library than Coro::Mysql (%lu vs. %lu).",
+                 client_version, mysql_get_client_version ());
 
         if (fd != my->net.fd)
           croak ("DBD::mysql fd and libmysql disagree - library mismatch, unsupported transport or API changes?");

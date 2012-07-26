@@ -29,7 +29,15 @@
 extern "C" {
 #endif /* __cplusplus */
 
-typedef char *xgptr;
+#if MYSQL_VERSION_ID < 50100
+typedef       I8 *xgptr;
+typedef       I8 *const cxgptr;
+typedef int    xlen;
+#else
+typedef       U8 *xgptr;
+typedef const U8 *cxgptr;
+typedef size_t xlen;
+#endif
 
 enum enum_vio_type
 {
@@ -52,9 +60,9 @@ Vio* vio_new_win32shared_memory(NET *net,HANDLE handle_file_map,
                                 HANDLE event_client_wrote,
                                 HANDLE event_client_read,
                                 HANDLE event_conn_closed);
-int vio_read_pipe(Vio *vio, xgptr buf, int size);
-int vio_write_pipe(Vio *vio, const xgptr buf, int size);
-int vio_close_pipe(Vio * vio);
+xlen vio_read_pipe(Vio *vio, xgptr buf, xlen size);
+xlen vio_write_pipe(Vio *vio, xcgptr buf, xlen size);
+xlen vio_close_pipe(Vio * vio);
 #else
 #define HANDLE void *
 #endif /* __WIN__ */
@@ -63,9 +71,9 @@ void	vio_delete(Vio* vio);
 int	vio_close(Vio* vio);
 void    vio_reset(Vio* vio, enum enum_vio_type type,
                   my_socket sd, HANDLE hPipe, uint flags);
-int	vio_read(Vio *vio, xgptr	buf, int size);
-int     vio_read_buff(Vio *vio, xgptr buf, int size);
-int	vio_write(Vio *vio, const xgptr buf, int size);
+xlen	vio_read(Vio *vio, xgptr buf, xlen size);
+xlen    vio_read_buff(Vio *vio, xgptr buf, xlen size);
+xlen	vio_write(Vio *vio, cxgptr buf, xlen size);
 int	vio_blocking(Vio *vio, my_bool onoff, my_bool *old_mode);
 my_bool	vio_is_blocking(Vio *vio);
 /* setsockopt TCP_NODELAY at IPPROTO_TCP level, when possible */
@@ -89,50 +97,6 @@ my_bool	vio_peer_addr(Vio* vio, char *buf, uint16 *port);
 /* Remotes in_addr */
 void	vio_in_addr(Vio *vio, struct in_addr *in);
 my_bool	vio_poll_read(Vio *vio,uint timeout);
-
-#ifdef HAVE_OPENSSL
-#include <openssl/opensslv.h>
-#if OPENSSL_VERSION_NUMBER < 0x0090700f
-#define DES_cblock des_cblock
-#define DES_key_schedule des_key_schedule
-#define DES_set_key_unchecked(k,ks) des_set_key_unchecked((k),*(ks))
-#define DES_ede3_cbc_encrypt(i,o,l,k1,k2,k3,iv,e) des_ede3_cbc_encrypt((i),(o),(l),*(k1),*(k2),*(k3),(iv),(e))
-#endif
-
-#define HEADER_DES_LOCL_H dummy_something
-#define YASSL_MYSQL_COMPATIBLE
-#ifndef YASSL_PREFIX
-#define YASSL_PREFIX
-#endif
-/* Set yaSSL to use same type as MySQL do for socket handles */
-typedef my_socket YASSL_SOCKET_T;
-#define YASSL_SOCKET_T_DEFINED
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-
-struct st_VioSSLFd
-{
-  SSL_CTX *ssl_context;
-};
-
-int sslaccept(struct st_VioSSLFd*, Vio *, long timeout);
-int sslconnect(struct st_VioSSLFd*, Vio *, long timeout);
-
-struct st_VioSSLFd
-*new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
-		       const char *ca_file,  const char *ca_path,
-		       const char *cipher);
-struct st_VioSSLFd
-*new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
-		      const char *ca_file,const char *ca_path,
-		      const char *cipher);
-#endif /* HAVE_OPENSSL */
-
-#ifdef HAVE_SMEM
-int vio_read_shared_memory(Vio *vio, xgptr buf, int size);
-int vio_write_shared_memory(Vio *vio, const xgptr buf, int size);
-int vio_close_shared_memory(Vio * vio);
-#endif
 
 void vio_end(void);
 
@@ -171,6 +135,8 @@ enum SSL_type
 
 /* HFTODO - hide this if we don't want client in embedded server */
 /* This structure is for every connection on both sides */
+#if MYSQL_VERSION_ID < 50500
+
 struct st_vio
 {
   my_socket		sd;		/* my_socket - real or imaginary */
@@ -188,8 +154,8 @@ struct st_vio
   /* function pointers. They are similar for socket/SSL/whatever */
   void    (*viodelete)(Vio*);
   int     (*vioerrno)(Vio*);
-  int     (*read)(Vio*, xgptr, int);
-  int     (*write)(Vio*, const xgptr, int);
+  xlen    (*read)(Vio*, xgptr, xlen);
+  xlen    (*write)(Vio*, cxgptr, xlen);
   int     (*vioblocking)(Vio*, my_bool, my_bool *);
   my_bool (*is_blocking)(Vio*);
   int     (*viokeepalive)(Vio*, my_bool);
@@ -200,20 +166,45 @@ struct st_vio
   my_bool (*was_interrupted)(Vio*);
   int     (*vioclose)(Vio*);
   void	  (*timeout)(Vio*, unsigned int which, unsigned int timeout);
-#ifdef HAVE_OPENSSL
-  void	  *ssl_arg;
-#endif
-#ifdef HAVE_SMEM
-  HANDLE  handle_file_map;
-  char    *handle_map;
-  HANDLE  event_server_wrote;
-  HANDLE  event_server_read;
-  HANDLE  event_client_wrote;
-  HANDLE  event_client_read;
-  HANDLE  event_conn_closed;
-  long    shared_memory_remain;
-  char    *shared_memory_pos;
-  NET     *net;
-#endif /* HAVE_SMEM */
 };
+
+#else
+
+struct st_vio
+{
+  my_socket		sd;		/* my_socket - real or imaginary */
+  HANDLE hPipe;
+  my_bool		localhost;	/* Are we from localhost? */
+  int			fcntl_mode;	/* Buffered fcntl(sd,F_GETFL) */
+  struct sockaddr_storage	local;		/* Local internet address */
+  struct sockaddr_storage	remote;		/* Remote internet address */
+  int addrLen;                          /* Length of remote address */
+  enum enum_vio_type	type;		/* Type of connection */
+  char			desc[30];	/* String description */
+  char                  *read_buffer;   /* buffer for vio_read_buff */
+  char                  *read_pos;      /* start of unfetched data in the
+                                           read buffer */
+  char                  *read_end;      /* end of unfetched data */
+  /* function pointers. They are similar for socket/SSL/whatever */
+  void    (*viodelete)(Vio*);
+  int     (*vioerrno)(Vio*);
+  size_t  (*read)(Vio*, unsigned char *, size_t);
+  size_t  (*write)(Vio*, const unsigned char *, size_t);
+  int     (*vioblocking)(Vio*, my_bool, my_bool *);
+  my_bool (*is_blocking)(Vio*);
+  int     (*viokeepalive)(Vio*, my_bool);
+  int     (*fastsend)(Vio*);
+  my_bool (*peer_addr)(Vio*, char *, uint16*, size_t);
+  void    (*in_addr)(Vio*, struct sockaddr_storage*);
+  my_bool (*should_retry)(Vio*);
+  my_bool (*was_interrupted)(Vio*);
+  int     (*vioclose)(Vio*);
+  void	  (*timeout)(Vio*, unsigned int which, unsigned int timeout);
+  my_bool (*poll_read)(Vio *vio, uint timeout);
+  my_bool (*is_connected)(Vio*);
+  my_bool (*has_data) (Vio*);
+};
+
+#endif
+
 #endif /* vio_violite_h_ */
