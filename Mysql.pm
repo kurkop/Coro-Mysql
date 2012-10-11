@@ -14,8 +14,9 @@ Coro::Mysql - let other threads run while doing mysql requests
 by the Coro module, not to the built-in windows process emulation which
 unfortunately is also called "threads")
 
-This module "patches" DBD::mysql database handles so that they do not
-block the whole process, but only the thread that they are used in.
+This module replaces the I/O handlers for a database connection, with the
+effect that "patched" database handles no longer block the all threads of
+a process, but only the thread that does the request.
 
 This can be used to make parallel sql requests using Coro, or to do other
 stuff while mysql is rumbling in the background.
@@ -26,22 +27,26 @@ Note that this module must be linked against exactly the same (shared,
 possibly not working with all OSes) F<libmysqlclient> library as
 DBD::mysql, otherwise it will not work.
 
+Also, this module requires a header file that apparently isn't installed
+everywhere (F<violite.h>), and therefore comes with it's own copy, which
+might or might not be compatible to the F<violite.h> of your library -
+when in doubt, make sure all the libmysqlclient header files are installed
+and delete the F<violite.h> header that comes with this module.
+
+On the good side, this module does a multitude of checks to ensure that
+the libray versions match on the binary level, so on incompatibilities you
+should expect an exception when trying to unblock a handle, rather than
+data corruption.
+
 Also, while this module makes database handles non-blocking, you still
 cannot run multiple requests in parallel on the same database handle. If
 you want to run multiple queries in parallel, you have to create multiple
-database connections, one for each thread that runs queries. Not doing so
-can corrupt your data - use a Coro::Semaphore when in doubt.
+database connections, one for each thread that runs queries. Not doing
+so can corrupt your data - use a Coro::Semaphore to protetc access to a
+shared database handle when in doubt.
 
 If you make sure that you never run two or more requests in parallel, you
 can freely share the database handles between threads, of course.
-
-Also, this module uses a number of "unclean" techniques (patching an
-internal libmysql structure for one thing) and was initially hacked within
-a few hours on a long flight to Malaysia.
-
-It does, however, check whether it indeed got the structure layout
-correct, so you should expect perl exceptions or early crashes as opposed
-to data corruption when something goes wrong during patching.
 
 =head2 SPEED
 
@@ -102,7 +107,7 @@ sub readable { &Coro::Handle::FH::readable }
 sub writable { &Coro::Handle::FH::writable }
 
 BEGIN {
-   our $VERSION = '1.2';
+   our $VERSION = '1.21';
 
    require XSLoader;
    XSLoader::load Coro::Mysql::, $VERSION;
@@ -201,6 +206,12 @@ L<Coro::Mysql>, without worrying about database handles.
 =head1 SEE ALSO
 
 L<Coro>, L<PApp::SQL> (a user friendly but efficient wrapper around DBI).
+
+=head1 HISTORY
+
+This module was initially hacked together within a few hours on a long
+flight to Malaysia, and seems to have worked ever since, with minor
+adjustments for newer libmysqlclient libraries.
 
 =head1 AUTHOR
 

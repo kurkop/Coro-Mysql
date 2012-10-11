@@ -1,11 +1,18 @@
 Revision history for Perl extension Coro::Mysql
 
+1.21 Thu Oct 11 05:21:10 CEST 2012
+	- no functional changes.
+	- document the fact that the API used by this module is now public,
+          so it doesn't rely on library internals anymore.
+	- verified to work with mysql connector/C 6.0.2 (compatible to
+          5.5).
+
 1.2  Thu Jul 26 23:19:47 CEST 2012
         - ensure DBD::mysql and Coro::Mysql are linked against the same
           libmysqlclient version (required is same libmysqlclient, but no
           idea how to check for that).
         - explicitly support libmysqlclient 5.1 and 5.5 - 5.1 probably just
-          worked before on most (But not all) architectures.
+          worked before on most (but not all) architectures.
 
 1.1   Sun Feb 20 11:34:38 CET 2011
 	- implement a special EV mode, used when EV was available at build

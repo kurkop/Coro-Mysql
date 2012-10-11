@@ -234,7 +234,7 @@ _patch (IV sock, int fd, unsigned long client_version, SV *corohandle_sv, SV *co
           croak ("DBD::mysql fd and vio-sd disagree - library mismatch, unsupported transport or API changes?");
 
         if (vio->vioclose != vio_close)
-          croak ("vio.write has unexpected content - library mismatch, unsupported transport or API changes?");
+          croak ("vio.vioclose has unexpected content - library mismatch, unsupported transport or API changes?");
 
         if (vio->write != vio_write)
           croak ("vio.write has unexpected content - library mismatch, unsupported transport or API changes?");
