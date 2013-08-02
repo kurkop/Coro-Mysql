@@ -1,5 +1,10 @@
 Revision history for Perl extension Coro::Mysql
 
+1.22 Fri Aug  2 06:06:14 CEST 2013
+	- experimental support for mariadb 10 (which has quite big changes).
+	- work around incompatible changes (again) in 5.16. use feature my ass.
+          (patch by....)
+
 1.21 Thu Oct 11 05:21:10 CEST 2012
 	- no functional changes.
 	- document the fact that the API used by this module is now public,

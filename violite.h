@@ -1,4 +1,4 @@
-/* adapted from violite.h from mysql 5.0.51 */
+/* adapted from violite.h from mysql 5.0.51 and many others */
 /* all modifications public domain */
 /* Copyright (C) 2000 MySQL AB
 
@@ -135,7 +135,50 @@ enum SSL_type
 
 /* HFTODO - hide this if we don't want client in embedded server */
 /* This structure is for every connection on both sides */
-#if MYSQL_VERSION_ID < 50500
+#if defined(MARIADB_BASE_VERSION)
+
+#define DESC_IS_PTR 1
+typedef unsigned char uchar;
+
+struct st_vio
+{
+  my_socket		sd;		/* my_socket - real or imaginary */
+  void *m_psi;
+  my_bool		localhost;	/* Are we from localhost? */
+  int			fcntl_mode;	/* Buffered fcntl(sd,F_GETFL) */
+  struct sockaddr_storage local;	/* Local internet address */
+  struct sockaddr_storage remote;	/* Remote internet address */
+  int addrLen;                          /* Length of remote address */
+  enum enum_vio_type	type;		/* Type of connection */
+  const char		*desc;		/* String description */
+  char                  *read_buffer;   /* buffer for vio_read_buff */
+  char                  *read_pos;      /* start of unfetched data in the
+                                           read buffer */
+  char                  *read_end;      /* end of unfetched data */
+  struct mysql_async_context *async_context; /* For non-blocking API */
+  int                   read_timeout;   /* Timeout value (ms) for read ops. */
+  int                   write_timeout;  /* Timeout value (ms) for write ops. */
+  /* function pointers. They are similar for socket/SSL/whatever */
+  void    (*viodelete)(Vio*);
+  int     (*vioerrno)(Vio*);
+  size_t  (*read)(Vio*, uchar *, size_t);
+  size_t  (*write)(Vio*, const uchar *, size_t);
+  int     (*timeout)(Vio*, uint, my_bool);
+  int     (*vioblocking)(Vio*, my_bool, my_bool *);
+  my_bool (*is_blocking)(Vio*);
+  int     (*viokeepalive)(Vio*, my_bool);
+  int     (*fastsend)(Vio*);
+  my_bool (*peer_addr)(Vio*, char *, uint16*, size_t);
+  void    (*in_addr)(Vio*, struct sockaddr_storage*);
+  my_bool (*should_retry)(Vio*);
+  my_bool (*was_timeout)(Vio*);
+  int     (*vioclose)(Vio*);
+  my_bool (*is_connected)(Vio*);
+  int (*shutdown)(Vio *, int);
+  my_bool (*has_data) (Vio*);
+};
+
+#elif MYSQL_VERSION_ID < 50500
 
 struct st_vio
 {

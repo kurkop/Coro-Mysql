@@ -23,11 +23,13 @@ static int use_ev;
 
 #include "violite.h"
 
-#define DESC_OFFSET 22
-
 #define CoMy_MAGIC 0x436f4d79
 
 typedef struct {
+#if DESC_IS_PTR
+  char desc[30];
+  const char *old_desc;
+#endif
   int magic;
   SV *corohandle_sv, *corohandle;
   int bufofs, bufcnt;
@@ -37,7 +39,12 @@ typedef struct {
   char buf[VIO_READ_BUFFER_SIZE];
 } ourdata;
 
-#define OURDATAPTR (*((ourdata **)((vio)->desc + DESC_OFFSET)))
+#if DESC_IS_PTR
+# define OURDATAPTR (*(ourdata **)&((vio)->desc))
+#else
+# define DESC_OFFSET 22
+# define OURDATAPTR (*((ourdata **)((vio)->desc + DESC_OFFSET)))
+#endif
 
 static xlen
 our_read (Vio *vio, xgptr p, xlen len)
@@ -167,6 +174,10 @@ our_close (Vio *vio)
   SvREFCNT_dec (our->corohandle);
   SvREFCNT_dec (our->corohandle_sv);
 
+#if DESC_IS_PTR
+  vio->desc = our->old_desc;
+#endif
+
   Safefree (our);
 
   vio->read     = vio_read;
@@ -254,8 +265,13 @@ _patch (IV sock, int fd, unsigned long client_version, SV *corohandle_sv, SV *co
             ev_io_init (&(our->ww), iocb, vio->sd, EV_WRITE);
           }
 #endif
-
+#if DESC_IS_PTR
+        our->old_desc = vio->desc;
+        strncpy (our->desc, vio->desc, sizeof (our->desc));
+        our->desc [sizeof (our->desc) - 1] = 0;
+#else
         vio->desc [DESC_OFFSET - 1] = 0;
+#endif
         OURDATAPTR = our;
 
         vio->vioclose = our_close;

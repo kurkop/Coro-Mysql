@@ -107,7 +107,7 @@ sub readable { &Coro::Handle::FH::readable }
 sub writable { &Coro::Handle::FH::writable }
 
 BEGIN {
-   our $VERSION = '1.21';
+   our $VERSION = '1.22';
 
    require XSLoader;
    XSLoader::load Coro::Mysql::, $VERSION;
@@ -147,7 +147,7 @@ sub unblock {
          $fh = Coro::Handle::unblock ($fh);
       }
 
-      _patch $sock, $DBH->{sockfd}, $DBH->{mysql_clientversion}, $fh, tied ${$fh};
+      _patch $sock, $DBH->{sockfd}, $DBH->{mysql_clientversion}, $fh, tied *$$fh;
    }
 
    $DBH
