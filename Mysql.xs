@@ -1,4 +1,4 @@
-#include <sys/errno.h>
+#include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -37,6 +37,9 @@ typedef struct {
   ev_io rw, ww;
 #endif
   char buf[VIO_READ_BUFFER_SIZE];
+  size_t  (*old_read)(Vio*, uchar *, size_t);
+  size_t  (*old_write)(Vio*, const uchar *, size_t);
+  int     (*old_vioclose)(Vio*);
 } ourdata;
 
 #if DESC_IS_PTR
@@ -180,9 +183,9 @@ our_close (Vio *vio)
 
   Safefree (our);
 
-  vio->read     = vio_read;
-  vio->write    = vio_write;
-  vio->vioclose = vio_close;
+  vio->vioclose = our->old_vioclose;
+  vio->write    = our->old_write;
+  vio->read     = our->old_read;
 
   vio->vioclose (vio);
 }
@@ -243,7 +246,7 @@ _patch (IV sock, int fd, unsigned long client_version, SV *corohandle_sv, SV *co
 
         if (fd != vio->sd)
           croak ("DBD::mysql fd and vio-sd disagree - library mismatch, unsupported transport or API changes?");
-
+#if MYSQL_VERSION_ID < 100010
         if (vio->vioclose != vio_close)
           croak ("vio.vioclose has unexpected content - library mismatch, unsupported transport or API changes?");
 
@@ -253,6 +256,7 @@ _patch (IV sock, int fd, unsigned long client_version, SV *corohandle_sv, SV *co
         if (vio->read != vio_read
             && vio->read != vio_read_buff)
           croak ("vio.read has unexpected content - library mismatch, unsupported transport or API changes?");
+#endif
 
         Newz (0, our, 1, ourdata);
         our->magic = CoMy_MAGIC;
@@ -273,6 +277,10 @@ _patch (IV sock, int fd, unsigned long client_version, SV *corohandle_sv, SV *co
         vio->desc [DESC_OFFSET - 1] = 0;
 #endif
         OURDATAPTR = our;
+
+        our->old_vioclose = vio->vioclose;
+        our->old_write    = vio->write;
+        our->old_read     = vio->read;
 
         vio->vioclose = our_close;
         vio->write    = our_write;

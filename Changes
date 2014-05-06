@@ -1,5 +1,11 @@
 Revision history for Perl extension Coro::Mysql
 
+1.23 Tue May  6 15:03:55 CEST 2014
+	- work around mariadb 10.0.10 no longer exporting vio functions by skipping
+          most of the safety checks - library mismatches will now cause memory
+          corruption causing crashes on the first sql statement execution.
+	- use correct header errno.h, not sys/errno.h.
+
 1.22 Fri Aug  2 06:06:14 CEST 2013
 	- experimental support for mariadb 10 (which has quite big changes).
 	- work around incompatible changes (again) in 5.16. use feature my ass.

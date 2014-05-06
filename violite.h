@@ -132,13 +132,13 @@ enum SSL_type
   SSL_TYPE_SPECIFIED
 };
 
+typedef unsigned char uchar;
 
 /* HFTODO - hide this if we don't want client in embedded server */
 /* This structure is for every connection on both sides */
 #if defined(MARIADB_BASE_VERSION)
 
 #define DESC_IS_PTR 1
-typedef unsigned char uchar;
 
 struct st_vio
 {
@@ -211,7 +211,7 @@ struct st_vio
   void	  (*timeout)(Vio*, unsigned int which, unsigned int timeout);
 };
 
-#else
+#elif MYSQL_VERSION_ID < 50600
 
 struct st_vio
 {
@@ -246,6 +246,75 @@ struct st_vio
   my_bool (*poll_read)(Vio *vio, uint timeout);
   my_bool (*is_connected)(Vio*);
   my_bool (*has_data) (Vio*);
+};
+
+#else
+
+/* this is not supposed to work, but it's a start
+ * one needs to look into MYSQL_SOCKET, missing
+ * vioblocking and this io_wait stuff, at the least. */
+
+/**
+  VIO I/O events.
+*/
+enum enum_vio_io_event
+{
+  VIO_IO_EVENT_READ,
+  VIO_IO_EVENT_WRITE,
+  VIO_IO_EVENT_CONNECT
+};
+
+struct st_vio
+{
+  MYSQL_SOCKET  mysql_socket;           /* Instrumented socket */
+  my_bool       localhost;              /* Are we from localhost? */
+  struct sockaddr_storage   local;      /* Local internet address */
+  struct sockaddr_storage   remote;     /* Remote internet address */
+  int addrLen;                          /* Length of remote address */
+  enum enum_vio_type    type;           /* Type of connection */
+  my_bool               inactive; /* Connection inactive (has been shutdown) */
+  char                  desc[30]; /* Description string. This
+                                                      member MUST NOT be
+                                                      used directly, but only
+                                                      via function
+                                                      "vio_description" */
+  char                  *read_buffer;   /* buffer for vio_read_buff */
+  char                  *read_pos;      /* start of unfetched data in the
+                                           read buffer */
+  char                  *read_end;      /* end of unfetched data */
+  int                   read_timeout;   /* Timeout value (ms) for read ops. */
+  int                   write_timeout;  /* Timeout value (ms) for write ops. */
+  
+  /* 
+     VIO vtable interface to be implemented by VIO's like SSL, Socket,
+     Named Pipe, etc.
+  */
+  
+  /* 
+     viodelete is responsible for cleaning up the VIO object by freeing 
+     internal buffers, closing descriptors, handles. 
+  */
+  void    (*viodelete)(Vio*);
+  int     (*vioerrno)(Vio*);
+  size_t  (*read)(Vio*, uchar *, size_t);
+  size_t  (*write)(Vio*, const uchar *, size_t);
+  int     (*timeout)(Vio*, uint, my_bool);
+  int     (*viokeepalive)(Vio*, my_bool);
+  int     (*fastsend)(Vio*);
+  my_bool (*peer_addr)(Vio*, char *, uint16*, size_t);
+  void    (*in_addr)(Vio*, struct sockaddr_storage*);
+  my_bool (*should_retry)(Vio*);
+  my_bool (*was_timeout)(Vio*);
+  /* 
+     vioshutdown is resposnible to shutdown/close the channel, so that no 
+     further communications can take place, however any related buffers,
+     descriptors, handles can remain valid after a shutdown.
+  */
+  int     (*vioshutdown)(Vio*);
+  my_bool (*is_connected)(Vio*);
+  my_bool (*has_data) (Vio*);
+  int (*io_wait)(Vio*, enum enum_vio_io_event, int);
+  my_bool (*connect)(Vio*, struct sockaddr *, socklen_t, int);
 };
 
 #endif
