@@ -156,7 +156,6 @@ static int
 our_close (Vio *vio)
 {
   ourdata *our = OURDATAPTR;
-  printf ("close()\n");//D
 
   if (vio->read != our_read)
     croak ("vio.read has unexpected content during unpatch - wtf?");

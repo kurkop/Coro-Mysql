@@ -1,5 +1,8 @@
 Revision history for Perl extension Coro::Mysql
 
+1.27 Tue Jun  3 15:38:29 CEST 2014
+	- grrr, remove dbeugging code again.
+
 1.26 Tue Jun  3 15:37:40 CEST 2014
 	- fix a use-after-free corruption bug when closing database
           handles.
