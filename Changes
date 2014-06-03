@@ -1,5 +1,9 @@
 Revision history for Perl extension Coro::Mysql
 
+1.26 Tue Jun  3 15:37:40 CEST 2014
+	- fix a use-after-free corruption bug when closing database
+          handles.
+
 1.25 Tue Jun  3 05:17:12 CEST 2014
 	- mariadb 5.5 isn't actually binary-compatible to mysql 5.5,
           work around that.
