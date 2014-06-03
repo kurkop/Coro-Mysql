@@ -1,5 +1,10 @@
 Revision history for Perl extension Coro::Mysql
 
+1.25 Tue Jun  3 05:17:12 CEST 2014
+	- mariadb 5.5 isn't actually binary-compatible to mysql 5.5,
+          work around that.
+	- remove debugging code (sigh).
+
 1.24 Tue Jun  3 05:08:07 CEST 2014
 	- port to mariadb 5.5 (and probably anything < 10), by treating it
           like mysql with missing library symbols.
