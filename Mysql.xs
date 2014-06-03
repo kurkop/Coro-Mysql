@@ -246,7 +246,7 @@ _patch (IV sock, int fd, unsigned long client_version, SV *corohandle_sv, SV *co
 
         if (fd != vio->sd)
           croak ("DBD::mysql fd and vio-sd disagree - library mismatch, unsupported transport or API changes?");
-#if MYSQL_VERSION_ID < 100010
+#if MYSQL_VERSION_ID < 100010 && !defined(MARIADB_BASE_VERSION)
         if (vio->vioclose != vio_close)
           croak ("vio.vioclose has unexpected content - library mismatch, unsupported transport or API changes?");
 

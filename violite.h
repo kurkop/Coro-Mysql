@@ -136,7 +136,7 @@ typedef unsigned char uchar;
 
 /* HFTODO - hide this if we don't want client in embedded server */
 /* This structure is for every connection on both sides */
-#if defined(MARIADB_BASE_VERSION)
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100010
 
 #define DESC_IS_PTR 1
 

@@ -1,5 +1,9 @@
 Revision history for Perl extension Coro::Mysql
 
+1.24 Tue Jun  3 05:08:07 CEST 2014
+	- port to mariadb 5.5 (and probably anything < 10), by treating it
+          like mysql with missing library symbols.
+
 1.23 Tue May  6 15:03:55 CEST 2014
 	- work around mariadb 10.0.10 no longer exporting vio functions by skipping
           most of the safety checks - library mismatches will now cause memory
