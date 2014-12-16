@@ -31,7 +31,7 @@ my %wm = (
     VERSION_FROM => "Mysql.pm",
 
     INC => '-I/usr/include/mysql',
-    LIBS => ['-L/usr/lib -lmysqlclient'],
+    LIBS => ['-L/usr/lib64/mysql -lmysqlclient'],
 );
 
 if (eval "require EV::MakeMaker; require Coro::MakeMaker; 1") {

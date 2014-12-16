@@ -33,6 +33,9 @@ sub ping {
 sub set {
 	my ($self,$socket, $args) = @_;
 	$self->{CACHE}->{$args->[1]}= $args->[2];
+	#for my $key (keys(%{$self->{CACHE}})){
+	#	warn "Key is $key and value is ".$self->{CACHE}->{$key};
+	#}
 }
 
 sub get {
@@ -70,10 +73,12 @@ sub fetchrow_array_json {
 	return $jsons."\n";
 }
 
-sub select {
-	my ($self,$socket, $query) = @_;
+sub query {
+	my ($self,$socket, $args) = @_;
+	my $query = $args->[1];
 	my $jsons;
-	warn "In select";
+	$query = substr $query, 1, -1;
+	
 	if ( $self->{CACHE}->{$query} ){
 		$jsons = $self->{CACHE}->{$query};
 		$socket->send($jsons);
@@ -88,31 +93,7 @@ sub select {
 		push(@{$self->{pool}}, $dbhc);
 		$socket->send($jsons);
 		$self->{sem}->up;
-	}
-}
-
-sub insert {
-	$_[0]->exec($_[1],$_[2]);	
-}
-
-sub exec {
-	my ($self,$socket, $query) = @_;
-	$self->{sem}->down while (!(scalar(@{$self->{pool}})));
-	my $dbhc = shift @{$self->{pool}};
-	my $sth = $dbhc->prepare($query);
-	$sth->execute;
-	push(@{$self->{pool}}, $dbhc);
-	$self->{sem}->up;
-	$socket->send("\n");
-}
-
-sub query {
-	my ($self,$socket, $args) = @_;
-	my $query = $args->[1];
-	$query = substr $query, 1, -1;
-	my $command = (split(" ",$query))[0];
-	($self->select($socket, $query) & return) if ($command eq "select");
-	($self->insert($socket, $query) & return) if ($command eq "insert");
+	}	
 }
 
 sub dispatcher {
@@ -172,3 +153,4 @@ This module implements Coro per connection in a event created by Anyevent.
 =head1 TESTING
 
 Connect with Telnet to server:
+
