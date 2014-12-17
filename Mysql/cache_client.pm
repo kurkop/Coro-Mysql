@@ -66,3 +66,38 @@ sub connect {
 }
 
 1;
+
+
+=head1 NAME
+
+Coro::Mysql::cache_client
+
+=head1 SYNOPSIS
+
+Run server:
+
+	use Coro::Mysql::cache_server;
+
+	$server = Coro::Mysql::cache_server->new();
+	$server->run("database","0.0.0.0",5000, 100);
+	EV::loop;
+
+Run client:
+
+	use Coro::Mysql::cache_client;
+
+	$client = Coro::Mysql::cache_client->new();
+	$client->connect("localhost", 5000);
+	my $command = $client->query("select * from database order by id desc limit 10");
+	print $client->ping();
+	$client->set("Key1","Key2");
+	print $client->get("Key1");
+	$client->del("Key1");
+	$client->disconnect();
+
+=head1 DESCRIPTION
+
+This module is a client connection to L<Coro::Mysql::cache_server>.
+
+This module implements L<AnyEvent::Socket> for connect to Server Cache
+using tcp_connect method.

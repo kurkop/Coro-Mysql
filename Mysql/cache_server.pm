@@ -73,7 +73,6 @@ sub fetchrow_array_json {
 sub select {
 	my ($self,$socket, $query) = @_;
 	my $jsons;
-	warn "In select";
 	if ( $self->{CACHE}->{$query} ){
 		$jsons = $self->{CACHE}->{$query};
 		$socket->send($jsons);
@@ -95,6 +94,10 @@ sub insert {
 	$_[0]->exec($_[1],$_[2]);	
 }
 
+sub update {
+	$_[0]->exec($_[1],$_[2]);	
+}
+
 sub exec {
 	my ($self,$socket, $query) = @_;
 	$self->{sem}->down while (!(scalar(@{$self->{pool}})));
@@ -111,14 +114,17 @@ sub query {
 	my $query = $args->[1];
 	$query = substr $query, 1, -1;
 	my $command = (split(" ",$query))[0];
+	#Execute query
 	($self->select($socket, $query) & return) if ($command eq "select");
 	($self->insert($socket, $query) & return) if ($command eq "insert");
+	($self->update($socket, $query) & return) if ($command eq "update");
 }
 
 sub dispatcher {
 	my ($self,$socket, $cmd) = @_;
 	my @args = $cmd =~ /"[^"]*"|\S+/g;
 	my $dispatch = $args[0];
+	#Execute self method
 	$self->$dispatch($socket,\@args);
 }
 
@@ -151,24 +157,34 @@ Coro::Mysql::cache_server
 
 =head1 SYNOPSIS
 
-use Coro::Mysql::cache_server
+Run server:
 
-#Create cache_server
-$server = Coro::Mysql::cache_server->new();
+	use Coro::Mysql::cache_server;
 
-#Run server (Datatbase name, Host, Port, Number connection to database)
-$server->run("app46","0.0.0.0",5000, 100);
+	$server = Coro::Mysql::cache_server->new();
+	$server->run("database","0.0.0.0",5000, 100);
+	EV::loop;
 
-#Run Loop
-EV::loop;
+Run client:
+
+	use Coro::Mysql::cache_client;
+
+	$client = Coro::Mysql::cache_client->new();
+	$client->connect("localhost", 5000);
+	my $command = $client->query("select * from database order by id desc limit 10");
+	print $client->ping();
+	$client->set("Key1","Key2");
+	print $client->get("Key1");
+	$client->del("Key1");
+	$client->disconnect();
 
 =head1 DESCRIPTION
 
 This module is a cache key/value implementation to Mysql using
 L<Coro::Mysql> and L<AnyEvent::Socket>.
 
-This module implements Coro per connection in a event created by Anyevent.
+This module implements Coro per connection, using Anyevent for create
+each connection. In each event use Socket Handle as a local variable
+to recieve message from client (see Coro::Mysql::cache_client) to
+execute commands and return responses.
 
-=head1 TESTING
-
-Connect with Telnet to server:
