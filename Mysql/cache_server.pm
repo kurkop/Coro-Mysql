@@ -18,6 +18,7 @@ sub new {
 	my $self = {};
 	$self->{pool} = [];
 	$self->{CACHE} = ();
+	$self->{TABLES} = ();
 	$self->{sem} = new Coro::Semaphore 0;
 	$self->{t0} = [gettimeofday];
 
@@ -84,6 +85,9 @@ sub select {
 		$sth->execute;
 		$jsons = $self->fetchrow_array_json($sth);
 		$self->{CACHE}->{$query} = $jsons;
+		my $query_table = $query =~ m/(from\s|FROM\s)(\w+)/;
+		$self->{TABLES}->{$2} = () unless $self->{TABLES}->{$2};
+		$self->{TABLES}->{$2}->{$query} = $query;
 		push(@{$self->{pool}}, $dbhc);
 		$socket->send($jsons);
 		$self->{sem}->up;
@@ -91,7 +95,20 @@ sub select {
 }
 
 sub insert {
-	$_[0]->exec($_[1],$_[2]);	
+	my ($self,$socket, $query) = @_;
+	$self->exec($socket,$query);
+	my $table = (split(" ",$query))[2];
+	#warn "KEY $_ and VALUE ".$self->{TABLES}->{$table}->{$_} for (keys(%{$self->{TABLES}->{$table}}));
+	#warn "Before clean cache";
+	#warn $_ for (keys(%{$self->{CACHE}}));
+	#Clean cache
+	delete $self->{CACHE}->{$_} for (keys(%{$self->{TABLES}->{$table}}));
+	#warn "After clean cache";
+	#warn $_ for (keys(%{$self->{CACHE}}));
+	#warn "KEY $_ and VALUE ".$self->{TABLES}->{$table}->{$_} for (keys(%{$self->{TABLES}->{$table}}));
+	#Clean tables
+	delete $self->{TABLES}->{$table};
+	warn $self->{TABLES}->{$table};
 }
 
 sub update {
@@ -118,6 +135,7 @@ sub query {
 	($self->select($socket, $query) & return) if ($command eq "select");
 	($self->insert($socket, $query) & return) if ($command eq "insert");
 	($self->update($socket, $query) & return) if ($command eq "update");
+	$self->select($socket, $query);
 }
 
 sub dispatcher {
